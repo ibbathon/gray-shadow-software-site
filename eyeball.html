@@ -1,28 +1,85 @@
 <html>
   <head>
     <script>
-      // beginPath();
-      // fill();
-      // fillStyle = "#ff0000";
-      // strokeStyle = "#ff0000";
+      function randBetween (min,max) {
+        return Math.random()*(max-min)+min;
+      }
+
+      class Polygon {
+        constructor (points) {
+          this.points = points;
+        }
+
+        regularPath (ctx) {
+          ctx.beginPath();
+          ctx.moveTo(...this.points[0]);
+          for (let i = 1; i < this.points.length; i++)
+            ctx.lineTo(...this.points[i]);
+          ctx.lineTo(...this.points[0]);
+        }
+
+        roundedPath (ctx, radius=50) {
+          ctx.beginPath();
+          // Start halfway between point 0 and point 1
+          for (let i = 0; i < this.points.length; i++) {
+            // Lines from this point to next and from next point to the point after
+            let p1 = this.points[i];
+            let p2 = this.points[(i+1)%this.points.length];
+            let p3 = this.points[(i+2)%this.points.length];
+            // Build the vectors for the lines
+            let dir = [p2[0]-p1[0],p2[1]-p1[1]];
+            let mag = Math.sqrt(dir[0]*dir[0]+dir[1]*dir[1]);
+            dir = [dir[0]/mag,dir[1]/mag];
+            let vec1 = {dir: dir, mag: mag};
+            dir = [p3[0]-p2[0],p3[1]-p2[1]];
+            mag = Math.sqrt(dir[0]*dir[0]+dir[1]*dir[1]);
+            dir = [dir[0]/mag,dir[1]/mag];
+            let vec2 = {dir: dir, mag: mag};
+
+            // Now find the midpoints
+            let lines = [];
+            let half1 = vec1.mag/2;
+            let half2 = vec2.mag/2;
+            let halfpoint1 = [p1[0]+vec1.dir[0]*half1,p1[1]+vec1.dir[1]*half1];
+            let halfpoint2 = [p2[0]+vec2.dir[0]*half2,p2[1]+vec2.dir[1]*half2];
+            // Draw a cubic bezier curve from the midway point of one line,
+            // through the joining point, and to the midway point of the next line
+            if (i == 0)
+              ctx.moveTo(...halfpoint1);
+            ctx.bezierCurveTo(...p2,...p2,...halfpoint2);
+          }
+        }
+
+        drawRounded (ctx, {strokeStyle="#000", lineWidth=1}={}) {
+          ctx.strokeStyle = strokeStyle;
+          ctx.lineWidth = lineWidth;
+          this.roundedPath(ctx);
+          ctx.stroke();
+        }
+
+        fillRounded (ctx, {fillStyle="#f00"}={}) {
+          ctx.fillStyle = fillStyle;
+          this.roundedPath(ctx);
+          ctx.fill();
+        }
+      }
+
       document.addEventListener("DOMContentLoaded", function (e) {
         var c = document.getElementById("mainCanvas");
         var ctx = c.getContext("2d");
-        /*ctx.beginPath();
-        ctx.moveTo(50,50);
-        ctx.lineTo(150,50);
-        ctx.lineTo(100,150);
-        ctx.lineTo(50,50);
-        ctx.stroke();*/
-        ctx.beginPath();
-        ctx.moveTo(50,50);
-        ctx.bezierCurveTo(150,50,150,50,100,150,100,150,50,50);
-        /*ctx.moveTo(150,50);
-        ctx.bezierCurveTo(100,150,100,150,50,50);
-        ctx.moveTo(100,150);
-        ctx.bezierCurveTo(50,50,50,50,150,50);*/
-        ctx.clip();
-        ctx.fillRect(0,0,200,200);
+        let points = [];
+        points.push([randBetween(0,50),randBetween(0,50)]);
+        points.push([randBetween(50,100),randBetween(0,50)]);
+        points.push([randBetween(50,100),randBetween(50,100)]);
+        points.push([randBetween(50,50),randBetween(50,100)]);
+        var p = new Polygon(points);
+        let points2 = [];
+        for (let i = 0; i < points.length; i++)
+          points2.push([points[i][0]+100,points[i][1]]);
+        var p2 = new Polygon(points2);
+        p.drawRounded(ctx);
+        p2.fillRounded(ctx);
+        p2.drawRounded(ctx,{lineWidth:10});
       });
     </script>
   </head>
