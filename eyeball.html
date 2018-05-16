@@ -1,5 +1,6 @@
 <html>
   <head>
+    <script src="https://unpkg.com/delaunator@2.0.0/delaunator.min.js"></script>
     <script>
       function randBetween (min,max) {
         return Math.random()*(max-min)+min;
@@ -67,23 +68,28 @@
       document.addEventListener("DOMContentLoaded", function (e) {
         var c = document.getElementById("mainCanvas");
         var ctx = c.getContext("2d");
+
         let points = [];
-        points.push([randBetween(0,50),randBetween(0,50)]);
-        points.push([randBetween(50,100),randBetween(0,50)]);
-        points.push([randBetween(50,100),randBetween(50,100)]);
-        points.push([randBetween(50,50),randBetween(50,100)]);
-        var p = new Polygon(points);
-        let points2 = [];
-        for (let i = 0; i < points.length; i++)
-          points2.push([points[i][0]+100,points[i][1]]);
-        var p2 = new Polygon(points2);
-        p.drawRounded(ctx);
-        p2.fillRounded(ctx);
-        p2.drawRounded(ctx,{lineWidth:10});
+        for (let i = 0; i < 100; i++)
+          points.push([randBetween(0,400),randBetween(0,400)]);
+
+        let triangles = [];
+        let triangleindices = Delaunator.from(points).triangles;
+        for (let i = 0; i < triangleindices.length; i+=3)
+          triangles.push(new Polygon([
+            points[triangleindices[i]],
+            points[triangleindices[i+1]],
+            points[triangleindices[i+2]]
+          ]));
+
+        for (let i = 0; i < triangles.length; i++) {
+          triangles[i].fillRounded(ctx);
+          triangles[i].drawRounded(ctx,{lineWidth:10});
+        }
       });
     </script>
   </head>
-  <body>
-    <canvas id="mainCanvas" width="200" height="200" style="border:1px solid #ddd">Use a better browser</canvas>
+  <body bgcolor="black">
+    <canvas id="mainCanvas" width="400" height="400" style="border:1px solid #ddd">Use a better browser</canvas>
   </body>
 </html>
