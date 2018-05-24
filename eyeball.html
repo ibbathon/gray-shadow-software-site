@@ -6,6 +6,12 @@
         return Math.random()*(max-min)+min;
       }
 
+      function lineLength (p1, p2) {
+        dx = Math.abs(p1[0]-p2[0]);
+        dy = Math.abs(p1[1]-p2[1]);
+        return Math.sqrt(dx*dx+dy*dy);
+      }
+
       class Polygon {
         constructor (points) {
           this.points = points;
@@ -65,31 +71,165 @@
         }
       }
 
-      document.addEventListener("DOMContentLoaded", function (e) {
-        var c = document.getElementById("mainCanvas");
-        var ctx = c.getContext("2d");
+      class Triangle extends Polygon {
+        constructor (points) {
+          super(points);
+          this.points = this.points.slice(0,3);
+          this.calcAttributes();
+        }
 
+        calcAttributes () {
+          let a = lineLength(this.points[0], this.points[1]);
+          let b = lineLength(this.points[1], this.points[2]);
+          let c = lineLength(this.points[2], this.points[0]);
+          this.base = Math.max(a,b,c);
+          let p = (a+b+c)/2;
+          this.area = Math.sqrt(p*(p-a)*(p-b)*(p-c));
+          this.height = 2*this.area/this.base;
+        }
+        /*
+          half_p = (a+b+c)/2
+          area = sqrt(p*(p-a)*(p-b)*(p-c))
+          base = max(a,b,c)
+          height = 2*area/base
+        */
+      }
+
+      function generatePointsInCircle (center, radius, numPoints, half="both") {
         let points = [];
-        for (let i = 0; i < 100; i++)
-          points.push([randBetween(0,400),randBetween(0,400)]);
+        let numGen = 0;
+        let xmin = center[0]-radius;
+        let xmax = center[0]+radius;
+        let ymin = center[1]-radius;
+        let ymax = center[1]+radius;
+        let attempts = 0;
+        let maxTries = 10;
 
+        while (numGen < numPoints) {
+          let point = [randBetween(xmin,xmax),randBetween(ymin,ymax)];
+          if (lineLength(point, center) <= radius) {
+            if (half == "bottom" && point[1] < center[1])
+              point[1] = -(point[1]-center[1])+center[1];
+            if (half == "top" && point[1] > center[1])
+              point[1] = -(point[1]-center[1])+center[1];
+            if (half == "left" && point[1] > center[1])
+              point[0] = -(point[0]-center[0])+center[0];
+            if (half == "right" && point[1] < center[1])
+              point[0] = -(point[0]-center[0])+center[0];
+            points.push(point);
+            numGen += 1;
+            attempts = 0;
+          } else {
+            attempts += 1;
+            if (attempts >= maxTries)
+              break;
+          }
+        }
+        console.log("Generated "+numGen+" points of "+numPoints+" requested");
+
+        return points;
+      }
+
+      function generateTrianglesFromPoints (points) {
         let triangles = [];
         let triangleindices = Delaunator.from(points).triangles;
         for (let i = 0; i < triangleindices.length; i+=3)
-          triangles.push(new Polygon([
+          triangles.push(new Triangle([
             points[triangleindices[i]],
             points[triangleindices[i+1]],
             points[triangleindices[i+2]]
           ]));
+        return triangles;
+      }
+
+      function mergeNearPoints (points) {
+        // Calculate some benchmarks for how close points should be, based on the total size of
+        // the point cloud
+        let nearnessRatio = 10;
+        let maxDist = 0;
+        for (let i = 0; i < points.length; i++) {
+          for (let j = i+1; j < points.length; j++) {
+            let dist = lineLength(points[i],points[j]);
+            if (dist > maxDist)
+              maxDist = dist;
+          }
+        }
+        let nearDist = maxDist/nearnessRatio;
+
+        // Merge points until no more merges are needed
+        let done = false;
+        let newPoints = []
+        while (!done) {
+          done = true;
+          let ignoreIndices = [];
+          for (let i = 0; i < points.length; i++) {
+            if (ignoreIndices.indexOf(i) != -1)
+              continue;
+            // Find the nearest point to this point
+            let nearestPoint = [];
+            let nearestDist = maxDist;
+            let nearestIndex = -1;
+            for (let j = i+1; j < points.length; j++) {
+              if (ignoreIndices.indexOf(j) != -1)
+                continue;
+              let dist = lineLength(points[i],points[j]);
+              if (dist < nearestDist) {
+                nearestPoint = points[j];
+                nearestDist = dist;
+                nearestIndex = j;
+              }
+            }
+            // If the nearest point to i is close enough, merge them and don't consider
+            // said nearest point in the future
+            if (nearestDist <= nearDist) {
+              newPoints.push([(points[i][0]+nearestPoint[0])/2,(points[i][1]+nearestPoint[1])/2]);
+              ignoreIndices.push(nearestIndex);
+              done = false;
+            }
+            // Otherwise, just keep point i
+            else
+              newPoints.push(points[i]);
+          }
+          points = newPoints;
+          newPoints = [];
+        }
+
+        return points;
+      }
+
+      document.addEventListener("DOMContentLoaded", function (e) {
+        var c = document.getElementById("mainCanvas");
+        var ctx = c.getContext("2d");
+
+        let lineWidth = 5;
+
+        ctx.fillRect(0,0,400,400);
+
+        let lefteye = generatePointsInCircle([100,100],70,30,half="top");
+        let righteye = generatePointsInCircle([300,100],70,30,half="top");
+        let mouth = generatePointsInCircle([200,200],150,60,half="bottom");
+        lefteye = mergeNearPoints(lefteye);
+        righteye = mergeNearPoints(righteye);
+        mouth = mergeNearPoints(mouth);
+        console.log(lefteye.length);
+        console.log(righteye.length);
+        console.log(mouth.length);
+
+        let triangles = [];
+        triangles = triangles.concat(generateTrianglesFromPoints(lefteye));
+        triangles = triangles.concat(generateTrianglesFromPoints(righteye));
+        triangles = triangles.concat(generateTrianglesFromPoints(mouth));
 
         for (let i = 0; i < triangles.length; i++) {
-          triangles[i].fillRounded(ctx);
-          triangles[i].drawRounded(ctx,{lineWidth:10});
+          if (triangles[i].base > lineWidth*2 && triangles[i].height > lineWidth*2) {
+            triangles[i].fillRounded(ctx);
+            triangles[i].drawRounded(ctx,{lineWidth:lineWidth});
+          }
         }
       });
     </script>
   </head>
-  <body bgcolor="black">
+  <body>
     <canvas id="mainCanvas" width="400" height="400" style="border:1px solid #ddd">Use a better browser</canvas>
   </body>
 </html>
